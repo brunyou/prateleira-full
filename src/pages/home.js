@@ -38,7 +38,7 @@ function Shelf({ columns, rows, position, boxes, onBoxClick }) {
         <mesh
           key={index}
           position={[-shelfWidth / 2 + box.col * boxSize + boxSize / 2, box.row * boxSize + boxSize / 2, 0.1]}
-          onClick={() => onBoxClick(box.col, box.row)}
+          onClick={() => onBoxClick(box.corridor, box.col, box.row)}
         >
           <boxGeometry args={[boxSize - 0.2, boxSize - 0.2, shelfDepth]} />
           <meshStandardMaterial color="blue" />
@@ -66,20 +66,20 @@ export default function App() {
       if (!newShelves[selectedCorridor]) {
         newShelves[selectedCorridor] = [];
       }
-      newShelves[selectedCorridor].push({ col: selectedX, row: selectedY });
+      newShelves[selectedCorridor].push({ corridor: selectedCorridor, col: selectedX, row: selectedY });
       return newShelves;
     });
   };
 
-  const handleBoxClick = (col, row) => {
-    setBoxToRemove({ col, row });
+  const handleBoxClick = (corridor, col, row) => {
+    setBoxToRemove({ corridor, col, row });
     setShowModal(true);
   };
 
   const handleConfirmRemove = () => {
     setShelves((prev) => {
       const newShelves = [...prev];
-      newShelves[selectedCorridor] = newShelves[selectedCorridor].filter(
+      newShelves[boxToRemove.corridor] = newShelves[boxToRemove.corridor].filter(
         (box) => !(box.col === boxToRemove.col && box.row === boxToRemove.row)
       );
       return newShelves;
@@ -116,7 +116,7 @@ export default function App() {
       </Canvas>
       {showModal && (
         <div style={{ position: "absolute", top: "40%", left: "50%", transform: "translate(-50%, -50%)", backgroundColor: "white", padding: "20px", borderRadius: "5px", border: "2px solid lightgray" }}>
-          <p>Deseja retirar a caixa do box {boxToRemove.col}, {boxToRemove.row}?</p>
+          <p>Deseja retirar a caixa da prateleira {boxToRemove.corridor}, posição X: {boxToRemove.col}, Y: {boxToRemove.row}?</p>
           <button onClick={handleConfirmRemove}>Sim</button>
           <button onClick={() => setShowModal(false)}>Não</button>
         </div>

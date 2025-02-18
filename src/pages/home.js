@@ -157,8 +157,8 @@ export default function App() {
   const getOccupiedCells = (shelf) => {
     const { position, columns, rows, rotation } = shelf;
     const [x, y, z] = position;
-    const shelfWidth = rotation === 0 ? columns : rows;
-    const shelfDepth = rotation === 0 ? rows : columns;
+    const shelfWidth = rotation === 0 ? columns : 1;
+    const shelfDepth = rotation === 0 ? 1 : columns;
 
     const cells = [];
     for (let i = 0; i < shelfWidth; i++) {
@@ -176,9 +176,9 @@ export default function App() {
 
     // Ajusta a posição para que a prateleira ocupe o número correto de células
     const adjustedPosition = [
-      Math.floor(x) + 0.5, // Centraliza no eixo X
+      Math.floor(x), // Centraliza no eixo X
       0,
-      Math.floor(z) + 0.5, // Centraliza no eixo Z
+      Math.floor(z), // Centraliza no eixo Z
     ];
 
     if (selectedShelf !== null) {

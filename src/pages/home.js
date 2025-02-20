@@ -8,13 +8,13 @@ function Grid({ size, onCellClick, highlightedCells = [] }) {
       {Array.from({ length: size }).map((_, x) =>
         Array.from({ length: size }).map((_, z) => {
           const isHighlighted = highlightedCells.some(
-            (cell) => cell[0] === x - size / 2 && cell[1] === z - size / 2
+            (cell) => cell[0] === x && cell[1] === z
           );
           return (
             <mesh
               key={`cell-${x}-${z}`}
               position={[x - size / 2, 0, z - size / 2]}
-              onClick={() => onCellClick([x - size / 2, 0, z - size / 2])}
+              onClick={() => onCellClick([x, z])}
             >
               <boxGeometry args={[1, 0.1, 1]} />
               <meshStandardMaterial
@@ -29,18 +29,32 @@ function Grid({ size, onCellClick, highlightedCells = [] }) {
   );
 }
 
-function Shelf({ id, columns, rows, position, selected, onSelect, onDelete, rotation, onDoubleClick }) {
+function Shelf({
+  id,
+  columns,
+  rows,
+  position,
+  selected,
+  onSelect,
+  onDelete,
+  gridSize,
+}) {
   const boxSize = 1;
   const shelfDepth = 0.5;
   const shelfWidth = columns * boxSize;
   const shelfHeight = rows * boxSize;
 
+  // Ajusta a posição para que a primeira coluna comece na célula [x, z]
+  const adjustedPosition = [
+    position[0] - gridSize / 2 + (columns - 1) / 2,
+    0,
+    position[1] - gridSize / 2,
+  ];
+
   return (
     <group
-      position={position}
-      rotation={[0, rotation, 0]}
+      position={adjustedPosition}
       onClick={() => onSelect(id)}
-      onDoubleClick={onDoubleClick}
     >
       {/* Estrutura da prateleira */}
       <mesh position={[-shelfWidth / 2 - 0.1, shelfHeight / 2, 0]}>
@@ -80,74 +94,43 @@ export default function App() {
   const [rows, setRows] = useState(3);
   const [selectedShelf, setSelectedShelf] = useState(null);
   const [gridSize, setGridSize] = useState(10);
+  const [gridCells, setGridCells] = useState(
+    Array.from({ length: gridSize }, () =>
+      Array.from({ length: gridSize }, () => null)
+    )
+  );
 
-  const addShelf = (position) => {
-    const newShelf = {
-      id: shelves.length,
-      columns,
-      rows,
-      position: position || [0, 0, 0],
-      rotation: 0,
-    };
-    setShelves([...shelves, newShelf]);
-  };
+  const calculateOccupiedCells = (shelf) => {
+    const { position, columns } = shelf;
+    const [x, z] = position;
+    const cells = [];
 
-  const deleteShelf = (id) => {
-    setShelves(shelves.filter((shelf) => shelf.id !== id));
-    if (selectedShelf === id) {
-      setSelectedShelf(null); // Redefine o estado se a prateleira excluída for a selecionada
-    }
-  };
-
-  const moveShelf = (id, newPosition) => {
-    setShelves(
-      shelves.map((shelf) =>
-        shelf.id === id ? { ...shelf, position: newPosition } : shelf
-      )
-    );
-  };
-
-  const rotateShelf = (id) => {
-    setShelves(
-      shelves.map((shelf) =>
-        shelf.id === id
-          ? {
-              ...shelf,
-              rotation: (shelf.rotation + Math.PI / 2) % (2 * Math.PI),
-            }
-          : shelf
-      )
-    );
-  };
-
-  const isPositionValid = (position, columns, rows, rotation, ignoreShelfId = null) => {
-    const [x, y, z] = position;
-    const shelfWidth = rotation === 0 ? columns : rows;
-    const shelfDepth = rotation === 0 ? rows : columns;
-
-    const halfGrid = gridSize / 2;
-    if (
-      x - shelfWidth / 2 < -halfGrid ||
-      x + shelfWidth / 2 > halfGrid ||
-      z - shelfDepth / 2 < -halfGrid ||
-      z + shelfDepth / 2 > halfGrid
-    ) {
-      return false;
+    // A prateleira ocupa 1 célula de profundidade e N células de largura
+    for (let i = 0; i < columns; i++) {
+      cells.push([x + i, z]);
     }
 
-    for (const shelf of shelves) {
-      if (shelf.id === ignoreShelfId) continue;
+    return cells;
+  };
 
-      const [shelfX, shelfY, shelfZ] = shelf.position;
-      const shelfWidthOther = shelf.rotation === 0 ? shelf.columns : shelf.rows;
-      const shelfDepthOther = shelf.rotation === 0 ? shelf.rows : shelf.columns;
+  const isPositionValid = (position, columns, ignoreShelfId = null) => {
+    const [x, z] = position;
 
-      if (
-        x < shelfX + shelfWidthOther / 2 &&
-        x + shelfWidth > shelfX - shelfWidthOther / 2 &&
-        z < shelfZ + shelfDepthOther / 2 &&
-        z + shelfDepth > shelfZ - shelfDepthOther / 2
-      ) {
+    // Verifica se todas as células estão dentro do grid
+    for (let i = 0; i < columns; i++) {
+      const cellX = x + i;
+      const cellZ = z;
+      if (cellX < 0 || cellX >= gridSize || cellZ < 0 || cellZ >= gridSize) {
+        return false;
+      }
+    }
+
+    // Verifica se as células estão livres (ou pertencem à prateleira ignorada)
+    for (let i = 0; i < columns; i++) {
+      const cellX = x + i;
+      const cellZ = z;
+      const cellValue = gridCells[cellX][cellZ];
+      if (cellValue !== null && cellValue !== ignoreShelfId) {
         return false;
       }
     }
@@ -155,37 +138,89 @@ export default function App() {
     return true;
   };
 
-  const getOccupiedCells = (shelf) => {
-    const { position, columns, rows, rotation } = shelf;
-    const [x, y, z] = position;
-    const shelfWidth = rotation === 0 ? columns : 1;
-    const shelfDepth = rotation === 0 ? 1 : columns;
+  const addShelf = (position) => {
+    const newShelf = {
+      id: shelves.length,
+      columns,
+      rows,
+      position,
+      rotation: 0,
+      area: calculateOccupiedCells({ position, columns }),
+    };
 
-    const cells = [];
-    for (let i = 0; i < shelfWidth; i++) {
-      for (let j = 0; j < shelfDepth; j++) {
-        const cellX = Math.floor(x) - Math.floor(shelfWidth / 2) + i;
-        const cellZ = Math.floor(z) - Math.floor(shelfDepth / 2) + j;
-        cells.push([cellX, cellZ]);
-      }
+    // Marca as células como ocupadas
+    const newGridCells = [...gridCells];
+    for (const [cellX, cellZ] of newShelf.area) {
+      newGridCells[cellX][cellZ] = newShelf.id;
     }
-    return cells;
+    setGridCells(newGridCells);
+
+    setShelves([...shelves, newShelf]);
+  };
+
+  const deleteShelf = (id) => {
+    const shelf = shelves.find((s) => s.id === id);
+    if (!shelf) return;
+
+    // Libera as células ocupadas
+    const newGridCells = [...gridCells];
+    for (const [cellX, cellZ] of shelf.area) {
+      newGridCells[cellX][cellZ] = null;
+    }
+    setGridCells(newGridCells);
+
+    setShelves(shelves.filter((shelf) => shelf.id !== id));
+    if (selectedShelf === id) {
+      setSelectedShelf(null);
+    }
+  };
+
+  const moveShelf = (id, newPosition) => {
+    const shelf = shelves.find((s) => s.id === id);
+    if (!shelf) return;
+
+    // Libera as células ocupadas atualmente
+    const newGridCells = [...gridCells];
+    for (const [cellX, cellZ] of shelf.area) {
+      newGridCells[cellX][cellZ] = null;
+    }
+
+    // Verifica se a nova posição é válida
+    if (isPositionValid(newPosition, shelf.columns, id)) {
+      const newArea = calculateOccupiedCells({ ...shelf, position: newPosition });
+
+      // Marca as novas células como ocupadas
+      for (const [cellX, cellZ] of newArea) {
+        newGridCells[cellX][cellZ] = id;
+      }
+      setGridCells(newGridCells);
+
+      // Atualiza a prateleira
+      const updatedShelf = { ...shelf, position: newPosition, area: newArea };
+      setShelves(shelves.map((s) => (s.id === id ? updatedShelf : s)));
+    } else {
+      // Restaura as células ocupadas anteriormente
+      for (const [cellX, cellZ] of shelf.area) {
+        newGridCells[cellX][cellZ] = id;
+      }
+      setGridCells(newGridCells);
+      alert("Posição inválida! Há sobreposição ou está fora do grid.");
+    }
   };
 
   const handleCellClick = (position) => {
-    const [x, y, z] = position;
-    const adjustedPosition = [Math.floor(x), 0, Math.floor(z)];
+    const [x, z] = position;
 
     if (selectedShelf !== null) {
       const shelf = shelves.find((s) => s.id === selectedShelf);
-      if (isPositionValid(adjustedPosition, shelf.columns, shelf.rows, shelf.rotation, selectedShelf)) {
-        moveShelf(selectedShelf, adjustedPosition);
+      if (isPositionValid([x, z], shelf.columns, selectedShelf)) {
+        moveShelf(selectedShelf, [x, z]);
       } else {
         alert("Posição inválida! Há sobreposição ou está fora do grid.");
       }
     } else {
-      if (isPositionValid(adjustedPosition, columns, rows, 0)) {
-        addShelf(adjustedPosition);
+      if (isPositionValid([x, z], columns)) {
+        addShelf([x, z]);
       } else {
         alert("Posição inválida! Há sobreposição ou está fora do grid.");
       }
@@ -193,11 +228,11 @@ export default function App() {
   };
 
   const highlightedCells = selectedShelf !== null
-    ? getOccupiedCells(shelves.find((shelf) => shelf.id === selectedShelf))
+    ? shelves.find((shelf) => shelf.id === selectedShelf).area
     : [];
 
   return (
-    <div style={{ width: "100vw", height: "100vh", display: "flex" }}>
+    <div style={{ width: "100%", height: "100%", display: "flex" }}>
       <Canvas style={{ flex: 1 }} camera={{ position: [0, 10, 10], fov: 50 }}>
         <ambientLight intensity={0.5} />
         <pointLight position={[10, 10, 10]} intensity={1} />
@@ -207,15 +242,14 @@ export default function App() {
           <Shelf
             key={shelf.id}
             {...shelf}
+            gridSize={gridSize}
             selected={shelf.id === selectedShelf}
             onSelect={setSelectedShelf}
             onDelete={deleteShelf}
-            rotation={shelf.rotation}
-            onDoubleClick={() => rotateShelf(shelf.id)}
           />
         ))}
       </Canvas>
-      <div style={{ width: "250px", height: "100vh", background: "#eee", overflowY: "auto", padding: "10px" }}>
+      <div style={{ width: "250px", height: "97vh", background: "#eee", overflowY: "auto", padding: "10px" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
           <p style={{ margin: "0" }}>Largura (colunas):</p>
           <input
@@ -236,9 +270,8 @@ export default function App() {
             onChange={(e) => setGridSize(Math.max(1, parseInt(e.target.value) || 1))}
           />
         </div>
-        <button onClick={() => addShelf()}>Adicionar Prateleira</button>
-        <button onClick={() => selectedShelf !== null && rotateShelf(selectedShelf)}>
-          Girar Prateleira Selecionada
+        <button onClick={() => addShelf([Math.floor(gridSize / 2), Math.floor(gridSize / 2)])}>
+          Adicionar Prateleira
         </button>
         <ul>
           {shelves.map((shelf) => (

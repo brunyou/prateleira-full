@@ -86,14 +86,17 @@ export default function App() {
       id: shelves.length,
       columns,
       rows,
-      position: position || [0, 0, 0], // Posição inicial no centro do grid ou na célula clicada
-      rotation: 0, // Rotação inicial (0 graus)
+      position: position || [0, 0, 0],
+      rotation: 0,
     };
     setShelves([...shelves, newShelf]);
   };
 
   const deleteShelf = (id) => {
     setShelves(shelves.filter((shelf) => shelf.id !== id));
+    if (selectedShelf === id) {
+      setSelectedShelf(null); // Redefine o estado se a prateleira excluída for a selecionada
+    }
   };
 
   const moveShelf = (id, newPosition) => {
@@ -110,7 +113,7 @@ export default function App() {
         shelf.id === id
           ? {
               ...shelf,
-              rotation: (shelf.rotation + Math.PI / 2) % (2 * Math.PI), // Gira 90 graus
+              rotation: (shelf.rotation + Math.PI / 2) % (2 * Math.PI),
             }
           : shelf
       )
@@ -119,21 +122,19 @@ export default function App() {
 
   const isPositionValid = (position, columns, rows, rotation, ignoreShelfId = null) => {
     const [x, y, z] = position;
-    const shelfWidth = rotation === 0 ? columns : rows; // Largura após rotação
-    const shelfDepth = rotation === 0 ? rows : columns; // Profundidade após rotação
+    const shelfWidth = rotation === 0 ? columns : rows;
+    const shelfDepth = rotation === 0 ? rows : columns;
 
-    // Verifica se a prateleira está dentro dos limites do grid
     const halfGrid = gridSize / 2;
     if (
-      x - shelfWidth / 2 < -halfGrid || // Verifica o lado esquerdo
-      x + shelfWidth / 2 > halfGrid ||   // Verifica o lado direito
-      z - shelfDepth / 2 < -halfGrid ||  // Verifica o fundo
-      z + shelfDepth / 2 > halfGrid      // Verifica a frente
+      x - shelfWidth / 2 < -halfGrid ||
+      x + shelfWidth / 2 > halfGrid ||
+      z - shelfDepth / 2 < -halfGrid ||
+      z + shelfDepth / 2 > halfGrid
     ) {
       return false;
     }
 
-    // Verifica colisão com outras prateleiras
     for (const shelf of shelves) {
       if (shelf.id === ignoreShelfId) continue;
 
@@ -147,11 +148,11 @@ export default function App() {
         z < shelfZ + shelfDepthOther / 2 &&
         z + shelfDepth > shelfZ - shelfDepthOther / 2
       ) {
-        return false; // Colisão detectada
+        return false;
       }
     }
 
-    return true; // Posição válida
+    return true;
   };
 
   const getOccupiedCells = (shelf) => {
@@ -173,16 +174,9 @@ export default function App() {
 
   const handleCellClick = (position) => {
     const [x, y, z] = position;
-
-    // Ajusta a posição para que a prateleira ocupe o número correto de células
-    const adjustedPosition = [
-      Math.floor(x), // Centraliza no eixo X
-      0,
-      Math.floor(z), // Centraliza no eixo Z
-    ];
+    const adjustedPosition = [Math.floor(x), 0, Math.floor(z)];
 
     if (selectedShelf !== null) {
-      // Mover a prateleira selecionada para a célula clicada
       const shelf = shelves.find((s) => s.id === selectedShelf);
       if (isPositionValid(adjustedPosition, shelf.columns, shelf.rows, shelf.rotation, selectedShelf)) {
         moveShelf(selectedShelf, adjustedPosition);
@@ -190,7 +184,6 @@ export default function App() {
         alert("Posição inválida! Há sobreposição ou está fora do grid.");
       }
     } else {
-      // Adicionar uma nova prateleira na célula clicada
       if (isPositionValid(adjustedPosition, columns, rows, 0)) {
         addShelf(adjustedPosition);
       } else {
@@ -255,7 +248,7 @@ export default function App() {
               style={{ cursor: "pointer", fontWeight: selectedShelf === shelf.id ? "bold" : "normal" }}
             >
               Prateleira {shelf.id} ({shelf.columns}x{shelf.rows})
-              <button onClick={() => deleteShelf(shelf.id)}>X</button>
+              <button onClick={(e) => { e.stopPropagation(); deleteShelf(shelf.id); }}>X</button>
             </li>
           ))}
         </ul>

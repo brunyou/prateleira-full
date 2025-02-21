@@ -257,20 +257,18 @@ export default function App() {
     const shelf = shelves.find((s) => s.id === id);
     if (!shelf) return;
 
-    // Inverte colunas e linhas
-    const newColumns = shelf.rows;
-    const newRows = shelf.columns;
+    // Apenas altera a rotação, sem inverter colunas e linhas
     const newRotation = (shelf.rotation + Math.PI / 2) % (2 * Math.PI); // Ciclo de 360°
 
     // Calcula a nova área ocupada
     const newArea = calculateOccupiedCells({
       position: shelf.position,
-      columns: newColumns,
+      columns: shelf.columns,
       rotation: newRotation,
     });
 
     // Verifica se a nova orientação é válida
-    if (isPositionValid(shelf.position, newColumns, newRotation, id)) {
+    if (isPositionValid(shelf.position, shelf.columns, newRotation, id)) {
       // Libera as células ocupadas atualmente
       const newGridCells = [...gridCells];
       for (const [cellX, cellZ] of shelf.area) {
@@ -286,8 +284,6 @@ export default function App() {
       // Atualiza a prateleira
       const updatedShelf = {
         ...shelf,
-        columns: newColumns,
-        rows: newRows,
         rotation: newRotation,
         area: newArea,
       };

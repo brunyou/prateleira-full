@@ -112,10 +112,20 @@ export default function App() {
       for (let i = 0; i < columns; i++) {
         cells.push([x + i - Math.floor(columns / 2), z]);
       }
-    } else {
-      // Orientação girada: ocupa 1 célula de largura e N de profundidade
+    } else if (rotation === Math.PI / 2) {
+      // Rotação de 90°: ocupa 1 célula de largura e N de profundidade
       for (let i = 0; i < columns; i++) {
         cells.push([x, z + i - Math.floor(columns / 2)]);
+      }
+    } else if (rotation === Math.PI) {
+      // Rotação de 180°: ocupa N células de largura e 1 de profundidade (invertido)
+      for (let i = 0; i < columns; i++) {
+        cells.push([x - i + Math.floor(columns / 2), z]);
+      }
+    } else if (rotation === (3 * Math.PI) / 2) {
+      // Rotação de 270°: ocupa 1 célula de largura e N de profundidade (invertido)
+      for (let i = 0; i < columns; i++) {
+        cells.push([x, z - i + Math.floor(columns / 2)]);
       }
     }
 
@@ -127,8 +137,21 @@ export default function App() {
 
     // Verifica se todas as células estão dentro do grid
     for (let i = 0; i < columns; i++) {
-      const cellX = x + (rotation === 0 ? i - Math.floor(columns / 2) : 0);
-      const cellZ = z + (rotation === 0 ? 0 : i - Math.floor(columns / 2));
+      let cellX, cellZ;
+      if (rotation === 0) {
+        cellX = x + i - Math.floor(columns / 2);
+        cellZ = z;
+      } else if (rotation === Math.PI / 2) {
+        cellX = x;
+        cellZ = z + i - Math.floor(columns / 2);
+      } else if (rotation === Math.PI) {
+        cellX = x - i + Math.floor(columns / 2);
+        cellZ = z;
+      } else if (rotation === (3 * Math.PI) / 2) {
+        cellX = x;
+        cellZ = z - i + Math.floor(columns / 2);
+      }
+
       if (cellX < 0 || cellX >= gridSize || cellZ < 0 || cellZ >= gridSize) {
         return false;
       }
@@ -136,8 +159,21 @@ export default function App() {
 
     // Verifica se as células estão livres (ou pertencem à prateleira ignorada)
     for (let i = 0; i < columns; i++) {
-      const cellX = x + (rotation === 0 ? i - Math.floor(columns / 2) : 0);
-      const cellZ = z + (rotation === 0 ? 0 : i - Math.floor(columns / 2));
+      let cellX, cellZ;
+      if (rotation === 0) {
+        cellX = x + i - Math.floor(columns / 2);
+        cellZ = z;
+      } else if (rotation === Math.PI / 2) {
+        cellX = x;
+        cellZ = z + i - Math.floor(columns / 2);
+      } else if (rotation === Math.PI) {
+        cellX = x - i + Math.floor(columns / 2);
+        cellZ = z;
+      } else if (rotation === (3 * Math.PI) / 2) {
+        cellX = x;
+        cellZ = z - i + Math.floor(columns / 2);
+      }
+
       const cellValue = gridCells[cellX][cellZ];
       if (cellValue !== null && cellValue !== ignoreShelfId) {
         return false;
@@ -224,7 +260,7 @@ export default function App() {
     // Inverte colunas e linhas
     const newColumns = shelf.rows;
     const newRows = shelf.columns;
-    const newRotation = (shelf.rotation + Math.PI / 2) % (2 * Math.PI);
+    const newRotation = (shelf.rotation + Math.PI / 2) % (2 * Math.PI); // Ciclo de 360°
 
     // Calcula a nova área ocupada
     const newArea = calculateOccupiedCells({

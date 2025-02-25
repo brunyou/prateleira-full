@@ -332,22 +332,32 @@ export default function App() {
   };
 
   const handleGridSizeChange = (newSize) => {
+    // Atualiza o tamanho do grid
     setGridSize(newSize);
-
+  
     // Cria um novo gridCells com o novo tamanho
     const newGridCells = Array.from({ length: newSize }, () =>
       Array.from({ length: newSize }, () => null)
     );
-
+  
     // Copia as células ocupadas do grid antigo para o novo
     shelves.forEach((shelf) => {
-      for (const [cellX, cellZ] of shelf.area) {
+      // Recalcula a área ocupada pela prateleira no novo grid
+      const area = calculateOccupiedCells({
+        position: shelf.position,
+        columns: shelf.columns,
+        rotation: shelf.rotation,
+      });
+  
+      // Marca as células como ocupadas no novo grid
+      for (const [cellX, cellZ] of area) {
         if (cellX < newSize && cellZ < newSize) {
           newGridCells[cellX][cellZ] = shelf.id;
         }
       }
     });
-
+  
+    // Atualiza o estado do gridCells
     setGridCells(newGridCells);
   };
 

@@ -46,10 +46,30 @@ function Shelf({
   const shelfHeight = rows * boxSize;
 
   // Ajusta a posição para que o centro da prateleira coincida com a célula [x, z]
+  let offsetX = 0;
+  let offsetZ = 0;
+
+  if (columns % 2 === 0) {
+    // Aplica deslocamento adicional apenas para larguras pares
+    if (rotation === 0) {
+      // Rotação 0°
+      offsetX = -0.5;
+    } else if (rotation === Math.PI / 2) {
+      // Rotação 90°
+      offsetZ = -0.5;
+    } else if (rotation === Math.PI) {
+      // Rotação 180°
+      offsetX = 0.5;
+    } else if (rotation === (3 * Math.PI) / 2) {
+      // Rotação 270°
+      offsetZ = 0.5;
+    }
+  }
+
   const adjustedPosition = [
-    position[0] - gridSize / 2,
+    position[0] - gridSize / 2 + offsetX,
     0,
-    position[1] - gridSize / 2,
+    position[1] - gridSize / 2 + offsetZ,
   ];
 
   return (
@@ -256,17 +276,17 @@ export default function App() {
   const rotateShelf = (id) => {
     const shelf = shelves.find((s) => s.id === id);
     if (!shelf) return;
-
+  
     // Apenas altera a rotação, sem inverter colunas e linhas
     const newRotation = (shelf.rotation + Math.PI / 2) % (2 * Math.PI); // Ciclo de 360°
-
+  
     // Calcula a nova área ocupada
     const newArea = calculateOccupiedCells({
       position: shelf.position,
       columns: shelf.columns,
       rotation: newRotation,
     });
-
+  
     // Verifica se a nova orientação é válida
     if (isPositionValid(shelf.position, shelf.columns, newRotation, id)) {
       // Libera as células ocupadas atualmente
@@ -274,13 +294,13 @@ export default function App() {
       for (const [cellX, cellZ] of shelf.area) {
         newGridCells[cellX][cellZ] = null;
       }
-
+  
       // Marca as novas células como ocupadas
       for (const [cellX, cellZ] of newArea) {
         newGridCells[cellX][cellZ] = id;
       }
       setGridCells(newGridCells);
-
+  
       // Atualiza a prateleira
       const updatedShelf = {
         ...shelf,

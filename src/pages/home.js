@@ -119,8 +119,7 @@ export default function App() {
   const [gridCells, setGridCells] = useState(
     Array.from({ length: gridSize }, () =>
       Array.from({ length: gridSize }, () => null)
-    )
-  );
+  ));
 
   const calculateOccupiedCells = (shelf) => {
     const { position, columns, rotation } = shelf;
@@ -356,6 +355,57 @@ export default function App() {
     ? shelves.find((shelf) => shelf.id === selectedShelf).area
     : [];
 
+  // Função para gerar o JSON do layout
+  const generateLayoutJSON = () => {
+    const layout = {
+      gridSize,
+      shelves: shelves.map((shelf) => ({
+        id: shelf.id,
+        columns: shelf.columns,
+        rows: shelf.rows,
+        position: shelf.position,
+        rotation: shelf.rotation,
+      })),
+    };
+    return JSON.stringify(layout, null, 2);
+  };
+
+  // Função para carregar o layout a partir do JSON
+  const loadLayoutFromJSON = (json) => {
+    const layout = JSON.parse(json);
+    setGridSize(layout.gridSize);
+    setShelves(layout.shelves);
+
+    // Atualiza o gridCells com as células ocupadas
+    const newGridCells = Array.from({ length: layout.gridSize }, () =>
+      Array.from({ length: layout.gridSize }, () => null)
+    );
+    layout.shelves.forEach((shelf) => {
+      const area = calculateOccupiedCells(shelf);
+      for (const [cellX, cellZ] of area) {
+        newGridCells[cellX][cellZ] = shelf.id;
+      }
+    });
+    setGridCells(newGridCells);
+  };
+
+  // Verifica se há um JSON na URL e carrega o layout
+  React.useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const layoutJSON = urlParams.get("json");
+    if (layoutJSON) {
+      loadLayoutFromJSON(layoutJSON);
+    }
+  }, []);
+
+  // Função para gerar a URL pronta com o JSON codificado
+  const generateLayoutURL = () => {
+    const json = generateLayoutJSON();
+    const encodedJSON = encodeURIComponent(json);
+    const url = `${window.location.origin}${window.location.pathname}?json=${encodedJSON}`;
+    return url;
+  };
+
   return (
     <div style={{ width: "100vw", height: "100vh", display: "flex" }}>
       <Canvas style={{ flex: 1 }} camera={{ position: [0, 10, 10], fov: 50 }}>
@@ -401,6 +451,22 @@ export default function App() {
         </button>
         <button onClick={() => selectedShelf !== null && rotateShelf(selectedShelf)}>
           Girar Prateleira Selecionada
+        </button>
+        <button onClick={() => {
+          const json = generateLayoutJSON();
+          navigator.clipboard.writeText(json).then(() => {
+            alert("JSON copiado para a área de transferência!");
+          });
+        }}>
+          Gerar JSON do Layout
+        </button>
+        <button onClick={() => {
+          const url = generateLayoutURL();
+          navigator.clipboard.writeText(url).then(() => {
+            alert("URL copiada para a área de transferência!");
+          });
+        }}>
+          Gerar URL do Layout
         </button>
         <ul>
           {shelves.map((shelf) => (

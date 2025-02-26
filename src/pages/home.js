@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
 
@@ -45,23 +45,17 @@ function Shelf({
   const shelfWidth = columns * boxSize;
   const shelfHeight = rows * boxSize;
 
-  // Ajusta a posição para que o centro da prateleira coincida com a célula [x, z]
   let offsetX = 0;
   let offsetZ = 0;
 
   if (columns % 2 === 0) {
-    // Aplica deslocamento adicional apenas para larguras pares
     if (rotation === 0) {
-      // Rotação 0°
       offsetX = -0.5;
     } else if (rotation === Math.PI / 2) {
-      // Rotação 90°
       offsetZ = -0.5;
     } else if (rotation === Math.PI) {
-      // Rotação 180°
       offsetX = 0.5;
     } else if (rotation === (3 * Math.PI) / 2) {
-      // Rotação 270°
       offsetZ = 0.5;
     }
   }
@@ -78,7 +72,6 @@ function Shelf({
       rotation={[0, rotation, 0]}
       onClick={() => onSelect(id)}
     >
-      {/* Estrutura da prateleira */}
       <mesh position={[-shelfWidth / 2 - 0.1, shelfHeight / 2, 0]}>
         <boxGeometry args={[0.2, shelfHeight, shelfDepth]} />
         <meshStandardMaterial color={selected ? "red" : "brown"} />
@@ -92,7 +85,6 @@ function Shelf({
         <meshStandardMaterial color={selected ? "red" : "brown"} />
       </mesh>
 
-      {/* Grades internas da prateleira */}
       {Array.from({ length: columns }).map((_, col) =>
         Array.from({ length: rows }).map((_, row) => (
           <group
@@ -127,22 +119,18 @@ export default function App() {
     const cells = [];
 
     if (rotation === 0) {
-      // Orientação original: ocupa N células de largura e 1 de profundidade
       for (let i = 0; i < columns; i++) {
         cells.push([x + i - Math.floor(columns / 2), z]);
       }
     } else if (rotation === Math.PI / 2) {
-      // Rotação de 90°: ocupa 1 célula de largura e N de profundidade
       for (let i = 0; i < columns; i++) {
         cells.push([x, z + i - Math.floor(columns / 2)]);
       }
     } else if (rotation === Math.PI) {
-      // Rotação de 180°: ocupa N células de largura e 1 de profundidade (invertido)
       for (let i = 0; i < columns; i++) {
         cells.push([x - i + Math.floor(columns / 2), z]);
       }
     } else if (rotation === (3 * Math.PI) / 2) {
-      // Rotação de 270°: ocupa 1 célula de largura e N de profundidade (invertido)
       for (let i = 0; i < columns; i++) {
         cells.push([x, z - i + Math.floor(columns / 2)]);
       }
@@ -154,7 +142,6 @@ export default function App() {
   const isPositionValid = (position, columns, rotation, ignoreShelfId = null) => {
     const [x, z] = position;
 
-    // Verifica se todas as células estão dentro do grid
     for (let i = 0; i < columns; i++) {
       let cellX, cellZ;
       if (rotation === 0) {
@@ -176,7 +163,6 @@ export default function App() {
       }
     }
 
-    // Verifica se as células estão livres (ou pertencem à prateleira ignorada)
     for (let i = 0; i < columns; i++) {
       let cellX, cellZ;
       if (rotation === 0) {
@@ -212,7 +198,6 @@ export default function App() {
       area: calculateOccupiedCells({ position, columns, rotation: 0 }),
     };
 
-    // Marca as células como ocupadas
     const newGridCells = [...gridCells];
     for (const [cellX, cellZ] of newShelf.area) {
       newGridCells[cellX][cellZ] = newShelf.id;
@@ -226,7 +211,6 @@ export default function App() {
     const shelf = shelves.find((s) => s.id === id);
     if (!shelf) return;
 
-    // Libera as células ocupadas
     const newGridCells = [...gridCells];
     for (const [cellX, cellZ] of shelf.area) {
       newGridCells[cellX][cellZ] = null;
@@ -243,27 +227,22 @@ export default function App() {
     const shelf = shelves.find((s) => s.id === id);
     if (!shelf) return;
 
-    // Libera as células ocupadas atualmente
     const newGridCells = [...gridCells];
     for (const [cellX, cellZ] of shelf.area) {
       newGridCells[cellX][cellZ] = null;
     }
 
-    // Verifica se a nova posição é válida
     if (isPositionValid(newPosition, shelf.columns, shelf.rotation, id)) {
       const newArea = calculateOccupiedCells({ ...shelf, position: newPosition });
 
-      // Marca as novas células como ocupadas
       for (const [cellX, cellZ] of newArea) {
         newGridCells[cellX][cellZ] = id;
       }
       setGridCells(newGridCells);
 
-      // Atualiza a prateleira
       const updatedShelf = { ...shelf, position: newPosition, area: newArea };
       setShelves(shelves.map((s) => (s.id === id ? updatedShelf : s)));
     } else {
-      // Restaura as células ocupadas anteriormente
       for (const [cellX, cellZ] of shelf.area) {
         newGridCells[cellX][cellZ] = id;
       }
@@ -276,31 +255,25 @@ export default function App() {
     const shelf = shelves.find((s) => s.id === id);
     if (!shelf) return;
   
-    // Apenas altera a rotação, sem inverter colunas e linhas
-    const newRotation = (shelf.rotation + Math.PI / 2) % (2 * Math.PI); // Ciclo de 360°
+    const newRotation = (shelf.rotation + Math.PI / 2) % (2 * Math.PI);
   
-    // Calcula a nova área ocupada
     const newArea = calculateOccupiedCells({
       position: shelf.position,
       columns: shelf.columns,
       rotation: newRotation,
     });
   
-    // Verifica se a nova orientação é válida
     if (isPositionValid(shelf.position, shelf.columns, newRotation, id)) {
-      // Libera as células ocupadas atualmente
       const newGridCells = [...gridCells];
       for (const [cellX, cellZ] of shelf.area) {
         newGridCells[cellX][cellZ] = null;
       }
   
-      // Marca as novas células como ocupadas
       for (const [cellX, cellZ] of newArea) {
         newGridCells[cellX][cellZ] = id;
       }
       setGridCells(newGridCells);
   
-      // Atualiza a prateleira
       const updatedShelf = {
         ...shelf,
         rotation: newRotation,
@@ -324,7 +297,7 @@ export default function App() {
       }
     } else {
       if (isPositionValid([x, z], columns, 0)) {
-        addShelf([x, z]);
+        // addShelf([x, z]);
       } else {
         alert("Posição inválida! Há sobreposição ou está fora do grid.");
       }
@@ -332,24 +305,19 @@ export default function App() {
   };
 
   const handleGridSizeChange = (newSize) => {
-    // Atualiza o tamanho do grid
     setGridSize(newSize);
   
-    // Cria um novo gridCells com o novo tamanho
     const newGridCells = Array.from({ length: newSize }, () =>
       Array.from({ length: newSize }, () => null)
     );
   
-    // Copia as células ocupadas do grid antigo para o novo
     shelves.forEach((shelf) => {
-      // Recalcula a área ocupada pela prateleira no novo grid
       const area = calculateOccupiedCells({
         position: shelf.position,
         columns: shelf.columns,
         rotation: shelf.rotation,
       });
   
-      // Marca as células como ocupadas no novo grid
       for (const [cellX, cellZ] of area) {
         if (cellX < newSize && cellZ < newSize) {
           newGridCells[cellX][cellZ] = shelf.id;
@@ -357,7 +325,6 @@ export default function App() {
       }
     });
   
-    // Atualiza o estado do gridCells
     setGridCells(newGridCells);
   };
 
@@ -365,7 +332,6 @@ export default function App() {
     ? shelves.find((shelf) => shelf.id === selectedShelf).area
     : [];
 
-  // Função para gerar o JSON do layout
   const generateLayoutJSON = () => {
     const layout = {
       gridSize,
@@ -380,27 +346,35 @@ export default function App() {
     return JSON.stringify(layout, null, 2);
   };
 
-  // Função para carregar o layout a partir do JSON
   const loadLayoutFromJSON = (json) => {
     const layout = JSON.parse(json);
     setGridSize(layout.gridSize);
-    setShelves(layout.shelves);
+
+    // Atualiza as prateleiras, calculando a área ocupada por cada uma
+    const updatedShelves = layout.shelves.map((shelf) => ({
+      ...shelf,
+      area: calculateOccupiedCells(shelf), // Calcula a área ocupada
+    }));
+
+    setShelves(updatedShelves);
 
     // Atualiza o gridCells com as células ocupadas
     const newGridCells = Array.from({ length: layout.gridSize }, () =>
       Array.from({ length: layout.gridSize }, () => null)
     );
-    layout.shelves.forEach((shelf) => {
-      const area = calculateOccupiedCells(shelf);
-      for (const [cellX, cellZ] of area) {
-        newGridCells[cellX][cellZ] = shelf.id;
+
+    updatedShelves.forEach((shelf) => {
+      for (const [cellX, cellZ] of shelf.area) {
+        if (cellX < layout.gridSize && cellZ < layout.gridSize) {
+          newGridCells[cellX][cellZ] = shelf.id;
+        }
       }
     });
+
     setGridCells(newGridCells);
   };
 
-  // Verifica se há um JSON na URL e carrega o layout
-  React.useEffect(() => {
+  useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const layoutJSON = urlParams.get("json");
     if (layoutJSON) {
@@ -408,7 +382,6 @@ export default function App() {
     }
   }, []);
 
-  // Função para gerar a URL pronta com o JSON codificado
   const generateLayoutURL = () => {
     const json = generateLayoutJSON();
     const encodedJSON = encodeURIComponent(json);

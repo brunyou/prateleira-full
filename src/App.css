@@ -1,3 +1,12 @@
+@import url('https://fonts.googleapis.com/css2?family=Concert+One&display=swap');
+
+.concert-one-regular {
+  font-family: "Concert One", serif;
+  font-weight: 400;
+  font-style: normal;
+}
+
+
 .App {
   text-align: center;
 }
@@ -35,4 +44,16 @@
   to {
     transform: rotate(360deg);
   }
+}
+
+.logo{
+  position:absolute;
+  left: 2em;
+  bottom:  1em;
+  user-select: none;
+}
+span.logo-span{
+  font-family: "Concert One", serif;
+  font-weight: 200;
+  font-size: 3em;
 }

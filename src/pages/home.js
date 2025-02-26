@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
+import { color } from "three/tsl";
 
 function Grid({ size, onCellClick, highlightedCells = [] }) {
   return (
@@ -408,7 +409,7 @@ export default function App() {
           />
         ))}
       </Canvas>
-      <div style={{ width: "250px", height: "100vh", background: "#eee", overflowY: "auto", padding: "10px" }}>
+      <div style={{ width: "250px", height: "97vh", background: "#eee", overflowY: "auto", padding: "10px" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
           <p style={{ margin: "0" }}>Largura (colunas):</p>
           <input
@@ -463,6 +464,9 @@ export default function App() {
             </li>
           ))}
         </ul>
+      </div>
+      <div className="logo">
+        <span className="logo-span" style={{color:"#026DB6"}}>Barracão</span><span className="logo-span" style={{color:"#76C14A"}}>Full</span>
       </div>
     </div>
   );

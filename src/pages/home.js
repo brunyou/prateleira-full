@@ -1,7 +1,16 @@
 import React, { useState, useEffect } from "react";
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
-import { color } from "three/tsl";
+import * as THREE from "three";
+
+const boxTypes = {
+  A: { type: "box", color: "red" },
+  B: { type: "box", color: "green" },
+  C: { type: "box", color: "blue" },
+  D: { type: "box", color: "yellow" },
+  E: { type: "box", color: "purple" },
+  F: { type: "fabric", color: "lightgray" }
+};
 
 function Grid({ size, onCellClick, highlightedCells = [] }) {
   return (
@@ -40,6 +49,7 @@ function Shelf({
   onDelete,
   gridSize,
   rotation,
+  boxes = [],
 }) {
   const boxSize = 1;
   const shelfDepth = 0.5;
@@ -90,12 +100,47 @@ function Shelf({
         Array.from({ length: rows }).map((_, row) => (
           <group
             key={`${col}-${row}`}
-            position={[-shelfWidth / 2 + col * boxSize + boxSize / 2, row * boxSize + boxSize / 2, 0]}
+            position={[
+              -shelfWidth / 2 + col * boxSize + boxSize / 2,
+              row * boxSize + boxSize / 2,
+              0,
+            ]}
           >
             <mesh>
               <boxGeometry args={[boxSize - 0.1, boxSize - 0.1, shelfDepth]} />
               <meshStandardMaterial color="lightgray" wireframe />
             </mesh>
+            {boxes[col] && boxes[col][row] && (
+          <group position={[0, 0, shelfDepth / 2 + 0.1]}>
+            {boxes[col][row].type === "fabric" ? (
+              <>
+            {/* Rolos de tecido deitados em pirâmide (2 embaixo, 1 em cima) */}
+            <group rotation={[Math.PI/2, 0, 0]}>
+              {/* Rolo inferior esquerdo */}
+              <mesh position={[-0.2, -0.35, 0.3]}>
+                <cylinderGeometry args={[0.15, 0.15, 1, 32]} />
+                <meshStandardMaterial color={boxes[col][row].color} />
+              </mesh>
+              {/* Rolo inferior direito */}
+              <mesh position={[0.2, -0.35, 0.3]}>
+                <cylinderGeometry args={[0.15, 0.15, 1, 32]} />
+                <meshStandardMaterial color={boxes[col][row].color} />
+              </mesh>
+              {/* Rolo superior central */}
+              <mesh position={[0, -0.35, 0.1]}>
+                <cylinderGeometry args={[0.15, 0.15, 1, 32]} />
+                <meshStandardMaterial color={boxes[col][row].color} />
+              </mesh>
+            </group>
+          </>
+        ) : (
+          <mesh position={[0, 0, -0.35]}>
+            <boxGeometry args={[boxSize - 0.2, boxSize - 0.2, boxSize - 0.2]} />
+            <meshStandardMaterial color={boxes[col][row].color} />
+          </mesh>
+        )}
+      </group>
+            )}
           </group>
         ))
       )}
@@ -109,10 +154,13 @@ export default function App() {
   const [rows, setRows] = useState(3);
   const [selectedShelf, setSelectedShelf] = useState(null);
   const [gridSize, setGridSize] = useState(10);
+  const [emptyProbability, setEmptyProbability] = useState(0.3);
+  const [fabricProbability, setFabricProbability] = useState(0.2);
   const [gridCells, setGridCells] = useState(
     Array.from({ length: gridSize }, () =>
       Array.from({ length: gridSize }, () => null)
-  ));
+    )
+  );
 
   const calculateOccupiedCells = (shelf) => {
     const { position, columns, rotation } = shelf;
@@ -196,6 +244,9 @@ export default function App() {
       rows,
       position,
       rotation: 0,
+      boxes: Array.from({ length: columns }, () => 
+        Array.from({ length: rows }, () => null)
+      ),
       area: calculateOccupiedCells({ position, columns, rotation: 0 }),
     };
 
@@ -298,7 +349,7 @@ export default function App() {
       }
     } else {
       if (isPositionValid([x, z], columns, 0)) {
-        // addShelf([x, z]);
+        addShelf([x, z]);
       } else {
         alert("Posição inválida! Há sobreposição ou está fora do grid.");
       }
@@ -329,11 +380,33 @@ export default function App() {
     setGridCells(newGridCells);
   };
 
-  const highlightedCells = selectedShelf !== null
-    ? shelves.find((shelf) => shelf.id === selectedShelf).area
-    : [];
+  const addBoxesToShelves = () => {
+    const newShelves = shelves.map((shelf) => {
+      const newBoxes = Array.from({ length: shelf.columns }).map((_, col) =>
+        Array.from({ length: shelf.rows }).map((_, row) => {
+          if (Math.random() < emptyProbability) {
+            return null;
+          }
+          
+          const boxKeys = Object.keys(boxTypes);
+          const randomType = Math.random() < fabricProbability 
+            ? "F" // Força rolo de tecido se atender a probabilidade
+            : boxKeys[Math.floor(Math.random() * (boxKeys.length - 1))]; // Exclui "F" para os outros
+          
+          const boxInfo = boxTypes[randomType];
+          return { 
+            type: boxInfo.type, 
+            color: boxInfo.color,
+            variant: randomType
+          };
+        })
+      );
+      return { ...shelf, boxes: newBoxes };
+    });
+    setShelves(newShelves);
+  };
 
-  const generateLayoutJSON = () => {
+  const generateLayoutJSON = (includeBoxes = false) => {
     const layout = {
       gridSize,
       shelves: shelves.map((shelf) => ({
@@ -342,37 +415,49 @@ export default function App() {
         rows: shelf.rows,
         position: shelf.position,
         rotation: shelf.rotation,
+        ...(includeBoxes && { boxes: shelf.boxes })
       })),
+      metadata: {
+        generatedAt: new Date().toISOString(),
+        version: "1.1",
+        boxTypes
+      }
     };
     return JSON.stringify(layout, null, 2);
   };
 
   const loadLayoutFromJSON = (json) => {
-    const layout = JSON.parse(json);
-    setGridSize(layout.gridSize);
+    try {
+      const layout = JSON.parse(json);
+      setGridSize(layout.gridSize);
+      
+      const updatedShelves = layout.shelves.map((shelf) => ({
+        ...shelf,
+        area: calculateOccupiedCells(shelf),
+        boxes: shelf.boxes || Array.from({ length: shelf.columns }, () => 
+          Array.from({ length: shelf.rows }, () => null)
+        )
+      }));
 
-    // Atualiza as prateleiras, calculando a área ocupada por cada uma
-    const updatedShelves = layout.shelves.map((shelf) => ({
-      ...shelf,
-      area: calculateOccupiedCells(shelf), // Calcula a área ocupada
-    }));
+      setShelves(updatedShelves);
 
-    setShelves(updatedShelves);
+      const newGridCells = Array.from({ length: layout.gridSize }, () =>
+        Array.from({ length: layout.gridSize }, () => null)
+      );
 
-    // Atualiza o gridCells com as células ocupadas
-    const newGridCells = Array.from({ length: layout.gridSize }, () =>
-      Array.from({ length: layout.gridSize }, () => null)
-    );
-
-    updatedShelves.forEach((shelf) => {
-      for (const [cellX, cellZ] of shelf.area) {
-        if (cellX < layout.gridSize && cellZ < layout.gridSize) {
-          newGridCells[cellX][cellZ] = shelf.id;
+      updatedShelves.forEach((shelf) => {
+        for (const [cellX, cellZ] of shelf.area) {
+          if (cellX < layout.gridSize && cellZ < layout.gridSize) {
+            newGridCells[cellX][cellZ] = shelf.id;
+          }
         }
-      }
-    });
+      });
 
-    setGridCells(newGridCells);
+      setGridCells(newGridCells);
+    } catch (error) {
+      console.error("Error loading layout:", error);
+      alert("Invalid JSON format");
+    }
   };
 
   useEffect(() => {
@@ -383,12 +468,15 @@ export default function App() {
     }
   }, []);
 
-  const generateLayoutURL = () => {
-    const json = generateLayoutJSON();
+  const generateLayoutURL = (includeBoxes = false) => {
+    const json = generateLayoutJSON(includeBoxes);
     const encodedJSON = encodeURIComponent(json);
-    const url = `${window.location.origin}${window.location.pathname}?json=${encodedJSON}`;
-    return url;
+    return `${window.location.origin}${window.location.pathname}?json=${encodedJSON}`;
   };
+
+  const highlightedCells = selectedShelf !== null
+    ? shelves.find((shelf) => shelf.id === selectedShelf)?.area || []
+    : [];
 
   return (
     <div style={{ width: "100vw", height: "100vh", display: "flex" }}>
@@ -396,7 +484,11 @@ export default function App() {
         <ambientLight intensity={0.5} />
         <pointLight position={[10, 10, 10]} intensity={1} />
         <OrbitControls />
-        <Grid size={gridSize} onCellClick={handleCellClick} highlightedCells={highlightedCells} />
+        <Grid 
+          size={gridSize} 
+          onCellClick={handleCellClick} 
+          highlightedCells={highlightedCells} 
+        />
         {shelves.map((shelf) => (
           <Shelf
             key={shelf.id}
@@ -430,43 +522,112 @@ export default function App() {
             onChange={(e) => handleGridSizeChange(Math.max(1, parseInt(e.target.value) || 1))}
           />
         </div>
+
+        <div style={{ marginTop: "20px" }}>
+          <label>Probabilidade de espaço vazio:</label>
+          <input
+            type="range"
+            min="0"
+            max="1"
+            step="0.1"
+            value={emptyProbability}
+            onChange={(e) => setEmptyProbability(parseFloat(e.target.value))}
+          />
+          <span>{(emptyProbability * 100).toFixed(0)}%</span>
+        </div>
+        
+        <div style={{ marginTop: "10px" }}>
+          <label>Probabilidade de rolos de tecido:</label>
+          <input
+            type="range"
+            min="0"
+            max="1"
+            step="0.1"
+            value={fabricProbability}
+            onChange={(e) => setFabricProbability(parseFloat(e.target.value))}
+          />
+          <span>{(fabricProbability * 100).toFixed(0)}%</span>
+        </div>
+
         <button onClick={() => addShelf([Math.floor(gridSize / 2), Math.floor(gridSize / 2)])}>
           Adicionar Prateleira
         </button>
         <button onClick={() => selectedShelf !== null && rotateShelf(selectedShelf)}>
           Girar Prateleira Selecionada
         </button>
+        <button onClick={addBoxesToShelves}>
+          Adicionar Caixas às Prateleiras
+        </button>
+        
         <button onClick={() => {
-          const json = generateLayoutJSON();
+          const json = generateLayoutJSON(true);
           navigator.clipboard.writeText(json).then(() => {
-            alert("JSON copiado para a área de transferência!");
+            alert("JSON com caixas copiado para a área de transferência!");
           });
         }}>
-          Gerar JSON do Layout
+          Gerar JSON com Caixas
         </button>
+        
         <button onClick={() => {
-          const url = generateLayoutURL();
-          navigator.clipboard.writeText(url).then(() => {
-            alert("URL copiada para a área de transferência!");
+          const json = generateLayoutJSON(false);
+          navigator.clipboard.writeText(json).then(() => {
+            alert("JSON sem caixas copiado para a área de transferência!");
           });
         }}>
-          Gerar URL do Layout
+          Gerar JSON sem Caixas
         </button>
-        <ul>
+        
+        <button onClick={() => {
+          const url = generateLayoutURL(true);
+          navigator.clipboard.writeText(url).then(() => {
+            alert("URL com caixas copiada para a área de transferência!");
+          });
+        }}>
+          Gerar URL com Caixas
+        </button>
+        
+        <button onClick={() => {
+          const url = generateLayoutURL(false);
+          navigator.clipboard.writeText(url).then(() => {
+            alert("URL sem caixas copiada para a área de transferência!");
+          });
+        }}>
+          Gerar URL sem Caixas
+        </button>
+
+        <ul style={{ listStyle: "none", padding: 0 }}>
           {shelves.map((shelf) => (
             <li
               key={shelf.id}
               onClick={() => setSelectedShelf(shelf.id)}
-              style={{ cursor: "pointer", fontWeight: selectedShelf === shelf.id ? "bold" : "normal" }}
+              style={{ 
+                cursor: "pointer", 
+                padding: "5px",
+                backgroundColor: selectedShelf === shelf.id ? "#ddd" : "transparent",
+                margin: "5px 0",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center"
+              }}
             >
-              Prateleira {shelf.id} ({shelf.columns}x{shelf.rows})
-              <button onClick={(e) => { e.stopPropagation(); deleteShelf(shelf.id); }}>X</button>
+              <span>
+                Prateleira {shelf.id} ({shelf.columns}x{shelf.rows})
+              </span>
+              <button 
+                onClick={(e) => { e.stopPropagation(); deleteShelf(shelf.id); }}
+                style={{ 
+                  background: "red", 
+                  color: "white", 
+                  border: "none", 
+                  borderRadius: "3px",
+                  padding: "2px 5px"
+                }}
+              >
+                X
+              </button>
             </li>
           ))}
         </ul>
-      </div>
-      <div className="logo">
-        <span className="logo-span" style={{color:"#026DB6"}}>Barracão</span><span className="logo-span" style={{color:"#76C14A"}}>Full</span>
       </div>
     </div>
   );

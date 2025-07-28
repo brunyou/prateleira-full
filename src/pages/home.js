@@ -1,102 +1,14 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useRef  } from "react";
 import { Canvas } from "@react-three/fiber";
-import { OrbitControls } from "@react-three/drei";
-import { Text, Grid, Line, Box } from "@react-three/drei";
+import { OrbitControls, Grid, Text } from "@react-three/drei";
+import Shelf from "../coponents/Shelf"; // caminho pode variar
 
-// Componente de Prateleira
-export function Shelf({
-  position,
-  rows = 3,
-  columns = 3,
-  cellSize = 1,
-  onMove,
-  index, // índice da prateleira para identificar no drag
-}) {
-  const width = columns * cellSize;
-  const height = rows * cellSize;
-  const depth = 0.1;
-
-  const [isDragging, setIsDragging] = useState(false);
-  const { camera, raycaster, mouse, gl, scene } = useThree();
-
-  const gridLines = useMemo(() => {
-    const lines = [];
-
-    for (let i = 0; i <= columns; i++) {
-      const x = i * cellSize;
-      lines.push([x, 0, 0], [x, height, 0]);
-    }
-    for (let j = 0; j <= rows; j++) {
-      const y = j * cellSize;
-      lines.push([0, y, 0], [width, y, 0]);
-    }
-    return lines;
-  }, [columns, rows, cellSize]);
-
-  // Referência para grupo
-  const ref = React.useRef();
-
-  // Para capturar eventos no plano XZ, vamos usar um plano imaginário para "projeter" a posição do mouse 3D.
-  // Ao arrastar, calculamos a posição X e Z no plano do chão (y=0).
-
-  // Guardar offset entre o ponto clicado e a posição da prateleira, para evitar salto abrupto.
-  const dragOffset = React.useRef([0, 0]);
-
-  // Funções de evento:
-  const onPointerDown = (event) => {
-    event.stopPropagation();
-    setIsDragging(true);
-
-    // Calcular offset entre posição do mouse no plano XZ e posição atual da prateleira:
-    const planeY = 0;
-    // Ponto de interseção do raio do mouse com plano Y=0:
-    const ray = event.ray;
-
-    // Interseção com plano Y=planeY
-    const t = (planeY - ray.origin.y) / ray.direction.y;
-    const intersectX = ray.origin.x + ray.direction.x * t;
-    const intersectZ = ray.origin.z + ray.direction.z * t;
-
-    dragOffset.current = [
-      intersectX - ref.current.position.x,
-      intersectZ - ref.current.position.z,
-    ];
-
-    // Desabilitar orbit controls ao arrastar para evitar conflito (opcional)
-    // Você pode emitir um evento para desabilitar o OrbitControls no componente pai se quiser
-}};
-
-const onPointerMove = (event) => {
-    if (!isDragging) return;
-    event.stopPropagation();
-
-    // Mesma lógica de cálculo do ponto de interseção
-    const planeY = 0;
-    const ray = event.ray;
-
-    const t = (planeY - ray.origin.y) / ray.direction.y;
-    let intersectX = ray.origin.x + ray.direction.x * t;
-    let intersectZ = ray.origin.z + ray.direction.z * t;
-
-    // Aplicar offset para manter o ponto do clique fixo em relação à prateleira
-    intersectX -= dragOffset.current[0];
-    intersectZ -= dragOffset.current[1];
-
-    // Opcional: limitar para dentro do grid (por exemplo, >=0)
-    if (intersectX < 0) intersectX = 0;
-    if (intersectZ < 0) intersectZ = 0;
-
-    // Atualizar posição do grupo (visualmente)
-    ref.current.position.set(intersectX, position[1], intersectZ);
-  };
-// Componente do chão em grid
 function GroundGrid({ sizeX, sizeY }) {
   return (
     <>
-      {/* Grid visual real, com linhas */}
       <Grid
-        position={[sizeX / 2, 0, sizeY / 2]} // centraliza no plano positivo
-        args={[sizeX, sizeY]} // largura x profundidade
+        position={[sizeX / 2, 0, sizeY / 2]}
+        args={[sizeX, sizeY]}
         cellSize={1}
         cellThickness={0.5}
         cellColor="#444"
@@ -107,8 +19,6 @@ function GroundGrid({ sizeX, sizeY }) {
         fadeStrength={1}
         infiniteGrid={false}
       />
-      
-      {/* Números de coordenadas */}
       {Array.from({ length: sizeX + 1 }).map((_, i) => (
         <Text
           key={`x-label-${i}`}
@@ -133,14 +43,12 @@ function GroundGrid({ sizeX, sizeY }) {
   );
 }
 
-
 export default function App() {
   const [columns, setColumns] = useState(3);
   const [rows, setRows] = useState(3);
-
   const [gridSizeX, setGridSizeX] = useState(10);
   const [gridSizeY, setGridSizeY] = useState(10);
-
+  const orbitRef = useRef();
   const [selectedCorridor, setSelectedCorridor] = useState(0);
   const [selectedX, setSelectedX] = useState(0);
   const [selectedY, setSelectedY] = useState(0);
@@ -270,25 +178,28 @@ export default function App() {
       <Canvas camera={{ position: [10, 10, 15], fov: 60 }}>
         <ambientLight intensity={0.5} />
         <pointLight position={[10, 10, 10]} />
-        <OrbitControls />
+        <OrbitControls ref={orbitRef} />
 
-        {/* Grade no chão */}
         <GroundGrid sizeX={gridSizeX} sizeY={gridSizeY} />
 
-        {/* Prateleiras */}
         {shelfPositions.map((shelf, i) => (
-          <Shelf
-            key={i}
-            columns={columns}
-            rows={rows}
-            position={[shelf.x, 0, shelf.y]}
-            boxes={shelf.boxes}
-            onBoxClick={handleBoxClick}
-          />
+        <Shelf
+          key={i}
+          columns={columns}
+          rows={rows}
+          position={[shelf.x, 0, shelf.y]}
+          boxes={shelf.boxes}
+          onBoxClick={handleBoxClick}
+          onDragStart={() => {
+            if (orbitRef.current) orbitRef.current.enabled = false;
+          }}
+          onDragEnd={() => {
+            if (orbitRef.current) orbitRef.current.enabled = true;
+          }}
+        />
         ))}
       </Canvas>
 
-      {/* Modal de remoção */}
       {showModal && (
         <div
           style={{
